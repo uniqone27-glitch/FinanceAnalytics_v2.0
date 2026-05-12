@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>손익계산서 대시보드</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg1:#edf6fb;
+      --bg2:#f8fbff;
+      --glass:rgba(255,255,255,.66);
+      --glass-strong:rgba(255,255,255,.84);
+      --stroke:rgba(255,255,255,.72);
+      --ink:#1d1d1f;
+      --muted:#6e6e73;
+      --line:#aeb8c4;
+      --line-soft:#d8dee8;
+      --total:#fff3cf;
+      --section:#f6f7fa;
+      --calc:#edf6ff;
+      --shadow:0 22px 60px rgba(31, 47, 70, .13);
+    }
+    * { box-sizing:border-box; }
+    html { min-height:100%; }
+    body {
+      margin:0;
+      min-height:100%;
+      color:var(--ink);
+      font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",Arial,sans-serif;
+      background:
+        radial-gradient(circle at 8% 6%, rgba(162,210,242,.75), transparent 28%),
+        radial-gradient(circle at 88% 16%, rgba(229,239,255,.95), transparent 34%),
+        linear-gradient(135deg, var(--bg1), var(--bg2));
+      background-attachment:fixed;
+    }
+    .shell {
+      width:fit-content;
+      max-width:calc(100vw - 24px);
+      margin:0 auto;
+      padding:14px 12px 26px;
+    }
+    .hero {
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:14px;
+      margin-bottom:8px;
+    }
+    .hero h1 {
+      margin:0 0 4px;
+      font-size:23px;
+      font-weight:800;
+      letter-spacing:-.045em;
+    }
+    .hero p {
+      margin:0;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.35;
+    }
+    .badge {
+      display:inline-flex;
+      align-items:center;
+      justify-content:flex-start;
+      gap:8px;
+      width:auto;
+      height:32px;
+      padding:0 12px;
+      border-radius:999px;
+      background:rgba(255,255,255,.62);
+      border:1px solid var(--stroke);
+      box-shadow:0 8px 22px rgba(31,47,70,.08);
+      backdrop-filter:blur(18px);
+      -webkit-backdrop-filter:blur(18px);
+      font-size:12px;
+      white-space:nowrap;
+      box-sizing:border-box;
+    }
+    .badge .status-dot {
+      flex:0 0 8px;
+      width:8px !important;
+      min-width:8px !important;
+      max-width:8px !important;
+      height:8px !important;
+      min-height:8px !important;
+      max-height:8px !important;
+      padding:0 !important;
+      margin:0 !important;
+      border-radius:50%;
+      background:#34c759;
+      display:block;
+      box-shadow:0 0 0 4px rgba(52,199,89,.12);
+    }
+    .badge .status-dot.is-missing {
+      background:#ff3b30;
+      box-shadow:0 0 0 4px rgba(255,59,48,.12);
+    }
+    #sourceBadge {
+      line-height:1;
+      white-space:nowrap;
+      flex:0 0 auto;
+      font-size:12px;
+    }
+    .panel {
+      background:var(--glass);
+      border:1px solid var(--stroke);
+      width:fit-content;
+      max-width:100%;
+      border-radius:28px;
+      overflow:hidden;
+      box-shadow:var(--shadow);
+      backdrop-filter:blur(28px);
+      -webkit-backdrop-filter:blur(28px);
+    }
+    .toolbar {
+      display:grid;
+      grid-template-columns:250px 105px 105px 110px 125px 250px;
+      gap:8px;
+      padding:10px;
+      border-bottom:1px solid rgba(255,255,255,.7);
+      background:rgba(255,255,255,.28);
+    }
+    .field label {
+      display:block;
+      margin-bottom:5px;
+      font-size:11px;
+      color:#5f6672;
+      font-weight:800;
+      letter-spacing:-.01em;
+    }
+    input[type=file], select, button {
+      width:100%;
+      min-height:34px;
+      border-radius:16px;
+      border:1px solid rgba(120,135,155,.28);
+      padding:0 12px;
+      font:inherit;
+      font-size:13px;
+      background:rgba(255,255,255,.76);
+      color:#1d1d1f;
+      outline:none;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.8), 0 6px 16px rgba(31,47,70,.04);
+    }
+    input[type=file] { padding:7px 12px; }
+    button {
+      font-weight:800;
+      cursor:pointer;
+      background:#1d1d1f;
+      color:#fff;
+      border-color:#1d1d1f;
+      box-shadow:0 10px 24px rgba(29,29,31,.18);
+    }
+
+    .buttonGroup {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+    }
+    .buttonGroup button {
+      min-height:34px;
+      padding:0 10px;
+      font-size:12px;
+      border-radius:16px;
+      white-space:nowrap;
+    }
+    button.resetBtn {
+      background:rgba(255,255,255,.76);
+      color:#1d1d1f;
+      border-color:rgba(120,135,155,.28);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.8), 0 6px 16px rgba(31,47,70,.04);
+    }
+    .tabBar {
+      display:flex;
+      gap:8px;
+      padding:0;
+      margin-top:10px;
+      background:transparent;
+    }
+    body.raw-mode .toolbar {
+      display:none;
+    }
+    .tabBtn {
+      width:auto;
+      min-height:34px;
+      padding:0 18px;
+      border-radius:999px;
+      background:rgba(255,255,255,.62);
+      color:#5f6672;
+      border:1px solid rgba(255,255,255,.72);
+      box-shadow:0 8px 18px rgba(31,47,70,.06);
+      font-size:13px;
+      font-weight:900;
+    }
+    .tabBtn.active {
+      background:#1d1d1f;
+      color:#ffffff;
+      border-color:#1d1d1f;
+      box-shadow:0 10px 24px rgba(29,29,31,.16);
+    }
+    .tabView {
+      display:none;
+    }
+    .tabView.active {
+      display:block;
+    }
+    .rawHeader {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+      padding:14px 14px 8px;
+      background:rgba(255,255,255,.20);
+    }
+    .rawHeader h2 {
+      margin:0 0 4px;
+      font-size:17px;
+      font-weight:900;
+      letter-spacing:-.03em;
+    }
+    .rawHeader p {
+      margin:0;
+      color:#8b8f98;
+      font-size:12px;
+    }
+    .rawHeaderActions {
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap:8px;
+      flex:0 0 auto;
+      padding-top:0;
+    }
+    .rawHeaderActions .rawExcelBtn,
+    .rawHeaderActions .rawSharedBtn {
+      width:126px;
+      min-width:126px;
+    }
+    .rawTools {
+      display:grid;
+      grid-template-columns:minmax(92px,.85fr) minmax(92px,.85fr) minmax(92px,.85fr) minmax(122px,1.1fr) minmax(122px,1.1fr) minmax(144px,1.25fr) minmax(122px,1.1fr) minmax(210px,1.75fr) minmax(118px,1fr);
+      align-items:start;
+      gap:8px;
+      min-width:0;
+      padding:0 14px 12px;
+      border-bottom:1px solid rgba(255,255,255,.68);
+      background:rgba(255,255,255,.20);
+    }
+    .rawTools select,
+    #rawKeywordInput,
+    .rawClearBtn,
+    .rawExcelBtn,
+    .rawSharedBtn {
+      width:100%;
+      height:34px;
+      min-height:34px;
+      padding:0 10px;
+      border-radius:999px;
+      border:1px solid rgba(120,135,155,.28);
+      background:rgba(255,255,255,.76);
+      color:#1d1d1f;
+      font:inherit;
+      font-size:12px;
+      outline:none;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.8), 0 6px 16px rgba(31,47,70,.04);
+      text-align:center;
+      text-align-last:center;
+    }
+    #rawKeywordInput::placeholder {
+      text-align:center;
+    }
+    .rawClearBtn {
+      cursor:pointer;
+      font-weight:900;
+      background:rgba(255,255,255,.76);
+      color:#1d1d1f;
+      border-color:rgba(120,135,155,.28);
+      white-space:nowrap;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.8), 0 6px 16px rgba(31,47,70,.04);
+    }
+    .rawClearGroup {
+      display:flex;
+      flex-direction:column;
+      gap:5px;
+      align-items:stretch;
+      justify-content:flex-start;
+      align-self:start;
+    }
+    .rawExportGroup {
+      display:flex;
+      flex-direction:column;
+      gap:5px;
+      align-items:stretch;
+      justify-content:flex-start;
+      align-self:start;
+    }
+    .rawExcelBtn {
+      cursor:pointer;
+      font-weight:900;
+      background:#1d1d1f;
+      color:#ffffff;
+      border-color:#1d1d1f;
+      white-space:nowrap;
+      box-shadow:0 10px 24px rgba(29,29,31,.16);
+    }
+    .rawSharedBtn {
+      cursor:pointer;
+      font-weight:900;
+      background:#1d1d1f;
+      color:#ffffff;
+      border-color:#1d1d1f;
+      white-space:nowrap;
+      box-shadow:0 10px 24px rgba(29,29,31,.16);
+    }
+    .rawCount {
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:24px;
+      padding:3px 8px;
+      border-radius:999px;
+      background:rgba(255,255,255,.72);
+      border:1px solid rgba(255,255,255,.72);
+      color:#5f6672;
+      font-size:11px;
+      font-weight:900;
+      white-space:nowrap;
+      text-align:center;
+    }
+    .rawTableWrap {
+      max-height:640px;
+      overflow:auto;
+      padding:10px;
+      background:rgba(255,255,255,.18);
+    }
+    table.rawTable {
+      width:100%;
+      min-width:1120px;
+      border-collapse:collapse;
+      background:rgba(255,255,255,.94);
+      border:1px solid #aeb8c4;
+      border-radius:14px;
+      overflow:hidden;
+      box-shadow:0 12px 28px rgba(31,47,70,.08);
+      font-size:11px;
+    }
+    .rawTable th,
+    .rawTable td {
+      border:1px solid #d8dee8;
+      padding:6px 8px;
+      text-align:left;
+      white-space:nowrap;
+      vertical-align:middle;
+    }
+    .rawTable th {
+      position:sticky;
+      top:0;
+      z-index:1;
+      background:#f6f7fa;
+      color:#5f6672;
+      font-weight:900;
+      text-align:center;
+      cursor:pointer;
+      user-select:none;
+    }
+    .rawTable th .sortMark {
+      display:inline-block;
+      width:12px;
+      margin-left:4px;
+      color:#8b8f98;
+      font-size:10px;
+    }
+    .rawTable .num {
+      text-align:right;
+      font-variant-numeric:tabular-nums;
+    }
+
+    .fileInfo {
+      display:grid;
+      grid-template-columns:1.3fr .55fr .55fr;
+      gap:8px;
+      padding:8px 10px;
+      border-bottom:1px solid rgba(255,255,255,.68);
+      background:rgba(255,255,255,.30);
+      max-width:760px;
+    }
+    .fileInfoCard {
+      min-width:0;
+      padding:8px 10px;
+      border-radius:16px;
+      background:rgba(255,255,255,.70);
+      border:1px solid rgba(255,255,255,.74);
+      box-shadow:0 8px 18px rgba(31,47,70,.06);
+    }
+    .fileInfoCard .k {
+      font-size:10px;
+      color:#6e6e73;
+      font-weight:800;
+      margin-bottom:3px;
+    }
+    .fileInfoCard .v {
+      font-size:12px;
+      color:#1d1d1f;
+      font-weight:800;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    .status {
+      display:none !important;
+      flex-wrap:wrap;
+      gap:6px 14px;
+      padding:6px 10px;
+      border-bottom:1px solid rgba(255,255,255,.68);
+      font-size:12px;
+      color:#5f6672;
+      background:rgba(255,255,255,.28);
+    }
+    .cards {
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      padding:10px;
+      border-bottom:1px solid rgba(255,255,255,.68);
+      background:rgba(255,255,255,.18);
+    }
+    .kpiGroup {
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .kpiGroupTitle {
+      padding:0 4px;
+      font-size:12px;
+      font-weight:900;
+      color:#5f6672;
+      letter-spacing:-.02em;
+    }
+    .kpiRow {
+      display:grid;
+      grid-template-columns:repeat(5, 1fr);
+      gap:8px;
+    }
+    .card {
+      min-height:68px;
+      background:rgba(255,255,255,.72);
+      border:1px solid rgba(255,255,255,.74);
+      border-radius:20px;
+      padding:9px 10px;
+      box-shadow:0 12px 28px rgba(31,47,70,.08);
+      backdrop-filter:blur(20px);
+      -webkit-backdrop-filter:blur(20px);
+      text-align:center;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+    }
+    .card .label {
+      font-size:11px;
+      color:#6e6e73;
+      font-weight:800;
+      margin-bottom:4px;
+    }
+    .card .value {
+      font-size:18px;
+      font-weight:900;
+      letter-spacing:-.04em;
+      white-space:nowrap;
+    }
+    .card .sub {
+      margin-top:3px;
+      font-size:11px;
+      color:#8b8f98;
+    }
+    .kpiGroup.historical .kpiGroupTitle {
+      color:#b0b6bf;
+    }
+    .kpiGroup.historical .card {
+      background:rgba(255,255,255,.52);
+      border-color:rgba(255,255,255,.64);
+      box-shadow:0 10px 24px rgba(31,47,70,.05);
+    }
+    .kpiGroup.historical .card .label {
+      color:#afb5be;
+    }
+    .kpiGroup.historical .card .value {
+      color:#9aa1ab;
+    }
+    .kpiGroup.historical .card .sub {
+      color:#bcc2ca;
+    }
+    .tableWrap {
+      padding:8px 0 12px;
+      overflow:auto;
+      background:rgba(255,255,255,.20);
+    }
+    .statementTop {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+      margin-bottom:8px;
+      padding:0 8px;
+    }
+    .statementTop h2 {
+      margin:0;
+      font-size:15px;
+      font-weight:850;
+      letter-spacing:-.035em;
+    }
+    .monthStamp {
+      border:1px solid rgba(120,135,155,.32);
+      border-radius:999px;
+      padding:5px 10px;
+      font-size:12px;
+      font-weight:900;
+      background:rgba(255,255,255,.72);
+      box-shadow:0 8px 18px rgba(31,47,70,.06);
+    }
+    table.pnl {
+      width:max-content;
+      min-width:0;
+      max-width:none;
+      border-collapse:collapse;
+      table-layout:fixed;
+      border:1.5px solid #7f8a99;
+      background:rgba(255,255,255,.93);
+      margin:0 auto;
+      border-radius:14px;
+      overflow:hidden;
+      box-shadow:0 14px 36px rgba(31,47,70,.10);
+      margin-left:auto;
+      margin-right:auto;
+    }
+    .pnl th, .pnl td {
+      border:1px solid var(--line);
+      padding:4px 6px;
+      font-size:11px;
+      line-height:1.18;
+      vertical-align:middle;
+      word-break:keep-all;
+      height:24px;
+    }
+    .pnl thead th {
+      background:rgba(245,247,250,.95);
+      text-align:center;
+      font-weight:900;
+    }
+    .pnl .subject {
+      width:120px;
+      font-weight:900;
+      text-align:left;
+    }
+    .pnl .item {
+      width:165px;
+      text-align:left;
+    }
+    .pnl .num {
+      text-align:right;
+      font-variant-numeric:tabular-nums;
+      white-space:nowrap;
+    }
+    .pnl .totalCol {
+      background:var(--total);
+      font-weight:400;
+    }
+    .pnl thead th.totalCol {
+      font-weight:900;
+    }
+    .pnl .row-section td {
+      background:var(--section);
+      font-weight:900;
+    }
+    .pnl .row-calc td {
+      background:var(--calc);
+      font-weight:900;
+    }
+    .pnl tr.numbered-row td.totalCol {
+      font-weight:900;
+    }
+    .pnl .row-section td.subject, .pnl .row-calc td.subject {
+      text-align:left;
+    }
+    .pnl .item-l1 { padding-left:10px; }
+    .pnl .item-l2 { padding-left:18px; color:#344054; }
+    .pnl .item-l3 { padding-left:30px; color:#475467; }
+    .pnl .item-right {
+      text-align:right;
+      padding-right:10px;
+      padding-left:8px;
+    }
+    .pnl .emph { font-weight:900; }
+    .pnl .flag { position:relative; }
+    .pnl .flag::before { display:none !important; }
+    .empty {
+      padding:36px;
+      text-align:center;
+      color:#6e6e73;
+    }
+    .help {
+      padding:10px 14px 14px;
+      color:#6e6e73;
+      font-size:12px;
+      line-height:1.5;
+      border-top:1px solid rgba(255,255,255,.68);
+      background:rgba(255,255,255,.20);
+    }
+    .help b { color:#4d5562; }
+    @media (max-width: 1000px) {
+      .hero { flex-direction:column; }
+      .shell, .panel { width:auto; }
+      .toolbar { grid-template-columns:1fr; }
+      .buttonGroup { grid-template-columns:1fr; }
+      .fileInfo { grid-template-columns:1fr; max-width:none; }
+      .rawHeader { flex-direction:column; align-items:stretch; }
+      .rawHeaderActions { justify-content:flex-start; }
+      .rawHeaderActions .rawExcelBtn, .rawHeaderActions .rawSharedBtn { width:126px; min-width:126px; }
+      .rawTools { grid-template-columns:1fr; min-width:0; padding:0 14px 12px; }
+      .kpiRow { grid-template-columns:1fr 1fr; }
+    }
+    @media print {
+      body { background:#fff; }
+      .shell { max-width:none; padding:0; }
+      .hero p, .badge, .toolbar, .tabBar, .fileInfo, .status, .cards, .help, #rawDataView { display:none; }
+      .panel { border:none; box-shadow:none; border-radius:0; background:#fff; }
+      .tableWrap { padding:0; background:#fff; }
+      table.pnl { margin:0; box-shadow:none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="hero">
+      <div>
+        <h1>FB Global Online Department Finance Dashboard</h1>
+        <p>엑셀 파일을 업로드하면 손익계산서가 자동으로 생성됩니다.</p>
+        <div class="tabBar">
+          <button type="button" class="tabBtn active" data-tab="dashboard">Dashboard</button>
+          <button type="button" class="tabBtn" data-tab="raw">Raw data</button>
+        </div>
+      </div>
+      <div class="badge"><span class="status-dot"></span><span id="sourceBadge">기본 데이터 반영됨</span></div>
+    </div>
+
+    <section class="panel">
+      <div class="toolbar">
+        <div class="field">
+          <label>엑셀 파일 업로드</label>
+          <input id="fileInput" type="file" accept=".xlsx,.xls" />
+        </div>
+        <div class="field">
+          <label>연도</label>
+          <select id="yearSelect"></select>
+        </div>
+        <div class="field">
+          <label>월</label>
+          <select id="monthSelect"></select>
+        </div>
+        <div class="field">
+          <label>사업부</label>
+          <select id="businessSelect"><option value="__ALL__">전체</option></select>
+        </div>
+        <div class="field">
+          <label>브랜드</label>
+          <select id="brandSelect"><option value="__ALL__">전체</option></select>
+        </div>
+        <div class="field">
+          <label>기능</label>
+          <div class="buttonGroup">
+            <button id="printBtn">인쇄 / PDF 저장</button>
+            <button id="resetBtn" type="button" class="resetBtn">Reset</button>
+          </div>
+        </div>
+      </div>
+      <div id="dashboardView" class="tabView active">
+        <div class="fileInfo" id="fileInfo"></div>
+        <div class="status" id="statusBar"></div>
+        <div class="cards" id="kpiCards"></div>
+        <div class="tableWrap">
+          <div class="statementTop">
+            <h2>손익계산서</h2>
+            <div class="monthStamp" id="monthStamp">-</div>
+          </div>
+          <div id="statement"></div>
+        </div>
+        <div class="help">
+          <b>필수 컬럼:</b> 거래일자, 사업부, 브랜드, 순매출, 비용, 내용, 계정과목, 대분류
+        </div>
+      </div>
+
+      <div id="rawDataView" class="tabView">
+        <div class="rawHeader">
+          <div>
+            <h2>Raw data</h2>
+            <p>업로드된 원본 데이터 내역을 확인할 수 있습니다.</p>
+          </div>
+          <div class="rawHeaderActions">
+            <button id="rawExcelDownBtn" type="button" class="rawExcelBtn">Excel down</button>
+            <button id="rawSharedDataDownBtn" type="button" class="rawSharedBtn">json down</button>
+          </div>
+        </div>
+        <div class="rawTools">
+          <select id="rawYearFilter"></select>
+          <select id="rawMonthFilter"></select>
+          <select id="rawDayFilter"></select>
+          <select id="rawBusinessFilter"></select>
+          <select id="rawBrandFilter"></select>
+          <select id="rawAccountFilter"></select>
+          <select id="rawCategoryFilter"></select>
+          <input id="rawKeywordInput" type="search" placeholder="검색어 입력" autocomplete="off" />
+          <div class="rawClearGroup">
+            <button id="rawClearFiltersBtn" type="button" class="rawClearBtn">필터 해제</button>
+            <div class="rawCount" id="rawCount">-</div>
+          </div>
+        </div>
+        <div class="rawTableWrap" id="rawDataTable"></div>
+      </div>
+    </section>
+  </div>
+  <script defer src="./script.js?v=38"></script>
+</body>
+</html>
